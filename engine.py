@@ -241,7 +241,7 @@ class MayaEngine(tank.platform.Engine):
         cb_fn = lambda en=self.instance_name, pc=self.context:on_scene_event_callback(en, pc)
         self.__watcher = SceneEventWatcher(cb_fn)
         self.log_debug("Registered open and save callbacks.")
-                
+                                
     def post_app_init(self):
         """
         Called when all apps have initialized
@@ -322,27 +322,45 @@ class MayaEngine(tank.platform.Engine):
         
         :returns: the created widget_class instance
         """
-        from tank.platform.qt import tankqdialog 
-        import maya.OpenMayaUI as OpenMayaUI
+
+        from maya import cmds as mc
+        import maya.OpenMayaUI as omui
         from PySide import QtCore, QtGui
         import shiboken
+        from tank.platform.qt import tankqdialog
+                
+        # 1. use maya to create the window - this ensures parenting works as expected:
+        # (window options match the default options for a standard QDialog)
+        maya_win = mc.window(title=("Tank: %s" % title), retain=True, minimizeButton=False)
         
-        # first construct the widget object 
+        # 2. find the QWidget for this window:
+        qt_win_ptr = omui.MQtUtil.findWindow(maya_win)
+        qt_win = shiboken.wrapInstance(long(qt_win_ptr), QtGui.QWidget)
+
+        # 3. construct the widget object 
         obj = widget_class(*args, **kwargs)
+
+        # 4. create the interior form directly parented to the maya window:
+        main_form = tankqdialog.TankMainForm(title, bundle, obj, qt_win)
+
+        # 5. fix up the layout so it does something sensible
+        layout = QtGui.QVBoxLayout()
+        layout.addWidget(main_form)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        qt_win.setLayout(layout)
         
-        # now create a dialog to put it inside
-        ptr = OpenMayaUI.MQtUtil.mainWindow()
-        parent = shiboken.wrapInstance(long(ptr), QtGui.QMainWindow)
-        self.log_debug("Parenting dialog to main window %08x %s" % (ptr, parent))
-        dialog = tankqdialog.TankQDialog(title, bundle, obj, parent)
+        # 6. make sure the dialog window is deleted if the internal widget is closed:
+        def on_delete_widget(exit_code):
+            # - sometimes python scares me!
+            if cmds.window(maya_win, query=True, exists=True):
+                cmds.deleteUI(maya_win)
+        main_form.widget_closed.connect(on_delete_widget)
         
-        # keep a reference to all created dialogs to make GC happy
-        self.__created_qt_dialogs.append(dialog)
+        # 7. and show the window:
+        mc.showWindow(maya_win)
         
-        # finally show it        
-        dialog.show()
-        
-        # lastly, return the instantiated class
+        # finally, return the instantiated widget
         return obj
     
     def show_modal(self, title, bundle, widget_class, *args, **kwargs):
