@@ -307,8 +307,7 @@ class MayaEngine(tank.platform.Engine):
         except Exception, e:
             self.log_error("PySide could not be imported! Tank Apps using pyside will not "
                            "operate correctly! Error reported: %s" % e)
-    
-        
+     
     def show_dialog(self, title, bundle, widget_class, *args, **kwargs):
         """
         Shows a non-modal dialog window in a way suitable for this engine. 
@@ -331,12 +330,12 @@ class MayaEngine(tank.platform.Engine):
                 
         # 1. use maya to create the window - this ensures parenting works as expected:
         # (window options match the default options for a standard QDialog)
-        maya_win = mc.window(title=("Tank: %s" % title), retain=True, minimizeButton=False)
+        maya_win = mc.window(title=("Tank: %s" % title), minimizeButton=False)
         
         # 2. find the QWidget for this window:
         qt_win_ptr = omui.MQtUtil.findWindow(maya_win)
         qt_win = shiboken.wrapInstance(long(qt_win_ptr), QtGui.QWidget)
-
+        
         # 3. construct the widget object 
         obj = widget_class(*args, **kwargs)
 
@@ -362,6 +361,7 @@ class MayaEngine(tank.platform.Engine):
         
         # finally, return the instantiated widget
         return obj
+
     
     def show_modal(self, title, bundle, widget_class, *args, **kwargs):
         """
